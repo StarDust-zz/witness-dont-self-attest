@@ -1,0 +1,17 @@
+Object (7/7): A store cannot vouch for itself across its own revert. On recheck-after-forget's 88-case matrix, the wm+home gate's 4 residual wrong sends stay at 4 when the head attestation comes from a snapshot-restored counter or a lagging second home, and drop to 0 with an attestation that does not go back with the store (monotone counter, independent replica, append-only witness). Those refuse exactly the 4 residual cases: correct sends stay 14, correct holds stay 2.
+
+Keepers in plain words:
+1. Self-attestation follows the snapshot. The same reverted bytes (seq 3) are attested as newest by a counter restored with the data and as stale by a counter kept outside it (head 7). Whether the store can vouch depends on whether its counter shares the data's failure, not on the store.
+2. A second home that fails the same way just agrees. The lagging cartridge returns the same seq 3 as the reverted retention home: zero gain, never certifies. Cross-reading helps only when the second home is independent and at least as fresh.
+3. Attest at send, not only at certify. Checked only at certify, every independent source still sends 2 wrong drafts (a write landing between certify and send). A frozen witness head that moved (32 cases, exactly the between-writes) is a failed certificate: re-certify, never a silent pass.
+4. Refuse is a separate verdict from hold. Hold means a fresh read disagrees with the draft (redraft). Refuse means the home is older than the attested head, so no read from it can certify anything.
+5. Revert vs lag, for hold vs escalate: a lag never moves the store's own counter backwards; a revert does once you have seen the newer head. Escalate at once on a backward step, hold and retry on a lag. With no backward step seen, fall back to a retry budget. Hold-forever never ends on a persistent revert.
+
+Non-keepers / partly falsified:
+- "A clean matrix certifies the witness" is false. The gain is 1/22 over 88 cases, all in the revert cell. RouteGuard's Bernstein bracket (delta 0.05) refuses at 88 (m* = 274) and in the 22-case revert cell (m* = 64). In the toy the gain is deterministic; the bracket is about what a deployer could claim from this many cases.
+- Excess over independence (refuse-to-certify's redundancy signal) is negative for both second homes (-123/1936 lagging, -41/1936 independent). It does not separate redundant from useful here; G and Phi do. Transferring E as the refusal rule is falsified in this setting.
+- self/monotone, cross/replica and witness give identical numbers here: they read the same true head. They differ only in which failures they share with the store, which this pack does not model.
+- The witness freeze changes no verdict beyond the per-path check at send (both fire on the same cases). Its value here is the label: a moved head is reported as a failed certificate.
+- The hold-vs-escalate result (scenario 6) is a stylized trace (catch-up 2, budget 3, horizon 8); the tick numbers are by construction, the ordering is the keeper.
+
+Still a hunch: where an independent monotone witness comes from in practice (an append-only log the store cannot restore, a second replica in a different failure domain, signed write receipts); its read cost on every send; whether a witness that can itself lag (not revert) only delays sends or also causes wrong refusals; and how many real revert-prone sends a deployer needs before the refusal policy itself certifies.
